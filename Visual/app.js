@@ -1,11 +1,11 @@
 'use strict';
 
 (function () {
-    var requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
+    let requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
     window.requestAnimationFrame = requestAnimationFrame;
 })();
 
-var canvas = document.getElementById("canvas"),
+let canvas = document.getElementById("canvas"),
     ctx = canvas.getContext("2d"),
     width = 500,
     height = 200,
@@ -24,8 +24,7 @@ var canvas = document.getElementById("canvas"),
     friction = 0.8,
     gravity = 0.3;
 
-var boxes = [];
-
+let boxes = [];
 // dimensions
 boxes.push({
     x: 0,
@@ -105,10 +104,9 @@ function update() {
     ctx.beginPath();
 
     player.grounded = false;
-    for (var i = 0; i < boxes.length; i++) {
+    for (let i = 0; i < boxes.length; i++) {
         ctx.rect(boxes[i].x, boxes[i].y, boxes[i].width, boxes[i].height);
-
-        var dir = colCheck(player, boxes[i]);
+        let dir = colCheck(player, boxes[i]);
 
         if (dir === "l" || dir === "r") {
             player.velX = 0;
@@ -126,11 +124,13 @@ function update() {
         player.velY = 0;
     }
 
+ 
+
     player.x += player.velX;
     player.y += player.velY;
 
     ctx.fill();
-    ctx.fillStyle = "red";
+    ctx.fillStyle = "blue";
     ctx.fillRect(player.x, player.y, player.width, player.height);
 
     requestAnimationFrame(update);
@@ -138,7 +138,7 @@ function update() {
 
 function colCheck(shapeA, shapeB) {
     // get the vectors to check against
-    var vX = (shapeA.x + (shapeA.width / 2)) - (shapeB.x + (shapeB.width / 2)),
+    let vX = (shapeA.x + (shapeA.width / 2)) - (shapeB.x + (shapeB.width / 2)),
         vY = (shapeA.y + (shapeA.height / 2)) - (shapeB.y + (shapeB.height / 2)),
         // add the half widths and half heights of the objects
         hWidths = (shapeA.width / 2) + (shapeB.width / 2),
@@ -148,7 +148,7 @@ function colCheck(shapeA, shapeB) {
     // if the x and y vector are less than the half width or half height, they we must be inside the object, causing a collision
     if (Math.abs(vX) < hWidths && Math.abs(vY) < hHeights) {
         // figures out on which side we are colliding (top, bottom, left, or right)
-        var oX = hWidths - Math.abs(vX),
+        let oX = hWidths - Math.abs(vX),
             oY = hHeights - Math.abs(vY);
         if (oX >= oY) {
             if (vY > 0) {
