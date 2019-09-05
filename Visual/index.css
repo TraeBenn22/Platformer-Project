@@ -1,6 +1,7 @@
-canvas{border:1px solid red;}
-
-#canvas{
-    background-color: red;
-}
-
+#renderer {
+	display: block;
+	margin: 32px auto 32px auto;
+	border: solid;
+	border-width: 1px;
+	border-color: black;
+};

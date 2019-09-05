@@ -1,187 +1,218 @@
 'use strict';
 
-(function () {
-    let requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
-    window.requestAnimationFrame = requestAnimationFrame;
-})();
-
-let canvas = document.getElementById("canvas"),
-    ctx = canvas.getContext("2d"),
-    width = 500,
-    height = 200,
-    player = {
-        x: width / 2,
-        y: height - 15,
-        width: 5,
-        height: 5,
-        speed: 3,
-        velX: 0,
-        velY: 0,
-        jumping: false,
-        grounded: false
+function Game() {
+   
+    let canvas = this.getCanvas();
+  
+    this.mouseX = this.mouseY = 0;
+    this.gridX = this.gridY = -1;
+    this.gridWall = true;
+  
+    this.jumpDown = false;
+    this.leftDown = false;
+    this.rightDown = false;
+  
+    // Create a grid with a floor over its entire width
+    this.grid = new PlatformerGrid(
+      Math.floor(canvas.width / this.GRID_RESOLUTION),
+      Math.floor(canvas.height / this.GRID_RESOLUTION),
+      this.GRID_RESOLUTION);
+  
+    for(let x = 0; x < this.grid.width; ++x)
+      this.grid.setCeiling(x, this.grid.height - 1, true);
+  
+    // Create a player
+    this.player = new PlatformerNode(
+      this.PLAYER_SPAWN_X,
+      this.PLAYER_SPAWN_Y,
+      this.PLAYER_SIZE,
+      this.PLAYER_SIZE);
+    this.grid.addNode(this.player);
+  
+    this.addListeners();
+    
+  };
+  
+  Game.prototype = {
+    GRID_RESOLUTION: 32,
+    PLAYER_SIZE: 24,
+    PAINT_STROKE_STYLE: "lime",
+    ERASE_STROKE_STYLE: "red",
+    PLAYER_JUMP_SPEED: -650,
+    PLAYER_WALK_SPEED: 270,
+    PLAYER_WALK_ACCELERATION: 3500,
+    PLAYER_SPAWN_X: 100,
+    PLAYER_SPAWN_Y: 100,
+    KEY_JUMP: 87,
+    KEY_LEFT: 65,
+    KEY_RIGHT: 68,
+  
+    addListeners() {
+      this.getCanvas().addEventListener("click", this.mouseClick.bind(this));
+      this.getCanvas().addEventListener("mousemove", this.mouseMove.bind(this));
+      this.getCanvas().addEventListener("mouseout", this.mouseLeave.bind(this));
+  
+      window.addEventListener("keydown", this.keyDown.bind(this));
+      window.addEventListener("keyup", this.keyUp.bind(this));
     },
-    keys = [],
-    friction = 0.8,
-    gravity = 0.3;
-
-let boxes = [];
-// dimensions
-boxes.push({
-    x: 0,
-    y: 0,
-    width: 10,
-    height: height
-});
-boxes.push({
-    x: 0,
-    y: height - 2,
-    width: width,
-    height: 50
-});
-boxes.push({
-    x: width - 10,
-    y: 0,
-    width: 50,
-    height: height
-});
-
-boxes.push({
-    x: 120,
-    y: 10,
-    width: 80,
-    height: 80
-});
-boxes.push({
-    x: 170,
-    y: 50,
-    width: 80,
-    height: 80
-});
-boxes.push({
-    x: 220,
-    y: 100,
-    width: 80,
-    height: 80
-});
-boxes.push({
-    x: 270,
-    y: 150,
-    width: 40,
-    height: 40
-});
-
-canvas.width = width;
-canvas.height = height;
-
-function update() {
-    // check keys
-    if (keys[38] || keys[32] || keys[87]) {
-        // up arrow or space
-        if (!player.jumping && player.grounded) {
-            player.jumping = true;
-            player.grounded = false;
-            player.velY = -player.speed * 2;
+  
+    getCanvas() {
+      return document.getElementById("renderer");
+    },
+  
+    run() {
+      this.lastTime = new Date();
+  
+      window.requestAnimationFrame(this.animate.bind(this));
+    },
+  
+    keyDown(e) {
+      switch(e.keyCode) {
+        case this.KEY_JUMP:
+          if(!this.jumpDown && this.player.onGround) {
+            this.jumpDown = true;
+            this.player.setvy(this.PLAYER_JUMP_SPEED);
+          }
+  
+          break;
+        case this.KEY_RIGHT:
+          this.rightDown = true;
+          break;
+        case this.KEY_LEFT:
+          this.leftDown = true;
+          break;
+      }
+    },
+  
+    keyUp(e) {
+      switch(e.keyCode) {
+        case this.KEY_JUMP:
+          this.jumpDown = false;
+          break;
+        case this.KEY_RIGHT:
+          this.rightDown = false;
+          break;
+        case this.KEY_LEFT:
+          this.leftDown = false;
+          break;
+      }
+    },
+  
+    mouseClick(e) {
+      if(this.gridX == -1 || this.gridY == -1)
+        return;
+  
+      // Toggle selected edge
+      if(this.gridWall)
+        this.grid.setWall(this.gridX, this.gridY, !this.grid.getWall(this.gridX, this.gridY));
+      else
+        this.grid.setCeiling(this.gridX, this.gridY, !this.grid.getCeiling(this.gridX, this.gridY));
+    },
+  
+    mouseMove(e) {
+      const bounds = this.getCanvas().getBoundingClientRect();
+  
+      this.mouseX = e.clientX - bounds.left;
+      this.mouseY = e.clientY - bounds.top;
+      this.gridX = Math.floor(this.mouseX / this.GRID_RESOLUTION);
+      this.gridY = Math.floor(this.mouseY / this.GRID_RESOLUTION);
+  
+      this.findSelectedEdge();
+    },
+  
+    findSelectedEdge() {
+      const deltaX = this.mouseX - this.gridX * this.GRID_RESOLUTION;
+      const deltaY = this.mouseY - this.gridY * this.GRID_RESOLUTION;
+      this.gridWall = deltaX * deltaX < deltaY * deltaY;
+  
+      if(deltaX + deltaY > this.GRID_RESOLUTION) {
+        if(deltaX > deltaY) {
+          this.gridX = Math.min(this.gridX + 1, this.grid.width);
         }
-    }
-    if (keys[39] || keys[68]) {
-        // right arrow
-        if (player.velX < player.speed) {
-            player.velX++;
+        else {
+          this.gridY = Math.min(this.gridY + 1, this.grid.height);
         }
-    }
-    if (keys[37] || keys[65]) {
-        // left arrow
-        if (player.velX > -player.speed) {
-            player.velX--;
+  
+        this.gridWall = !this.gridWall;
+      }
+    },
+  
+    mouseLeave(e) {
+      this.gridX = this.gridY = -1;
+    },
+  
+    animate() {
+      let time = new Date();
+      let timeStep = (time.getMilliseconds() - this.lastTime.getMilliseconds()) / 1000;
+      if(timeStep < 0)
+        timeStep += 1;
+  
+      this.lastTime = time;
+  
+      this.movePlayer(timeStep);
+      this.grid.update(timeStep);
+      this.render(timeStep);
+  
+      window.requestAnimationFrame(this.animate.bind(this));
+    },
+  
+    movePlayer(timeStep) {
+      if(this.rightDown) {
+        this.player.setvx(Math.min(this.player.vx + this.PLAYER_WALK_ACCELERATION * timeStep, this.PLAYER_WALK_SPEED));
+      }
+  
+      if(this.leftDown) {
+        this.player.setvx(Math.max(this.player.vx - this.PLAYER_WALK_ACCELERATION * timeStep, -this.PLAYER_WALK_SPEED));
+      }
+  
+      if(
+        this.player.x < -this.player.width ||
+        this.player.y < -this.player.height ||
+        this.player.x > this.getCanvas().width ||
+        this.player.y > this.getCanvas().height) {
+        this.player.x = this.PLAYER_SPAWN_X;
+        this.player.y = this.PLAYER_SPAWN_Y;
+      }
+    },
+  
+    render(timeStep) {
+      let canvas = this.getCanvas();
+      let context = canvas.getContext("2d");
+  
+      // Clear canvas
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = "white";
+      context.beginPath();
+      context.rect(0, 0, canvas.width, canvas.height);
+      context.fill();
+  
+      this.grid.draw(context);
+  
+      // Draw selected edge
+      if(this.gridX != -1 && this.gridY != -1) {
+        context.beginPath();
+        context.lineWidth = PlatformerGrid.prototype.EDGE_LINE_WIDTH;
+  
+        if(this.gridWall) {
+          if(this.grid.getWall(this.gridX, this.gridY))
+            context.strokeStyle = this.ERASE_STROKE_STYLE;
+          else
+            context.strokeStyle = this.PAINT_STROKE_STYLE;
+  
+          context.moveTo(this.gridX * this.GRID_RESOLUTION, this.gridY * this.GRID_RESOLUTION);
+          context.lineTo(this.gridX * this.GRID_RESOLUTION, (this.gridY + 1) * this.GRID_RESOLUTION);
         }
-    }
-
-    player.velX *= friction;
-    player.velY += gravity;
-
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "black";
-    ctx.beginPath();
-
-    player.grounded = false;
-    for (let i = 0; i < boxes.length; i++) {
-        ctx.rect(boxes[i].x, boxes[i].y, boxes[i].width, boxes[i].height);
-        let dir = colCheck(player, boxes[i]);
-
-        if (dir === "l" || dir === "r") {
-            player.velX = 0;
-            player.jumping = false;
-        } else if (dir === "b") {
-            player.grounded = true;
-            player.jumping = false;
-        } else if (dir === "t") {
-            player.velY *= -1;
+        else {
+          if(this.grid.getCeiling(this.gridX, this.gridY))
+            context.strokeStyle = this.ERASE_STROKE_STYLE;
+          else
+            context.strokeStyle = this.PAINT_STROKE_STYLE;
+  
+          context.moveTo(this.gridX * this.GRID_RESOLUTION, this.gridY * this.GRID_RESOLUTION);
+          context.lineTo((this.gridX + 1) * this.GRID_RESOLUTION, this.gridY * this.GRID_RESOLUTION);
         }
-
+  
+        context.stroke();
+      }
     }
-
-    if(player.grounded){
-        player.velY = 0;
-    }
-
- 
-
-    player.x += player.velX;
-    player.y += player.velY;
-
-    ctx.fill();
-    ctx.fillStyle = "blue";
-    ctx.fillRect(player.x, player.y, player.width, player.height);
-
-    requestAnimationFrame(update);
-}
-
-function colCheck(shapeA, shapeB) {
-    // get the vectors to check against
-    let vX = (shapeA.x + (shapeA.width / 2)) - (shapeB.x + (shapeB.width / 2)),
-        vY = (shapeA.y + (shapeA.height / 2)) - (shapeB.y + (shapeB.height / 2)),
-        // add the half widths and half heights of the objects
-        hWidths = (shapeA.width / 2) + (shapeB.width / 2),
-        hHeights = (shapeA.height / 2) + (shapeB.height / 2),
-        colDir = null;
-
-    // if the x and y vector are less than the half width or half height, they we must be inside the object, causing a collision
-    if (Math.abs(vX) < hWidths && Math.abs(vY) < hHeights) {
-        // figures out on which side we are colliding (top, bottom, left, or right)
-        let oX = hWidths - Math.abs(vX),
-            oY = hHeights - Math.abs(vY);
-        if (oX >= oY) {
-            if (vY > 0) {
-                colDir = "t";
-                shapeA.y += oY;
-            } else {
-                colDir = "b";
-                shapeA.y -= oY;
-            }
-        } else {
-            if (vX > 0) {
-                colDir = "l";
-                shapeA.x += oX;
-            } else {
-                colDir = "r";
-                shapeA.x -= oX;
-            }
-        }
-    }
-    return colDir;
-}
-
-document.body.addEventListener("keydown", function (e) {
-    keys[e.keyCode] = true;
-});
-
-document.body.addEventListener("keyup", function (e) {
-    keys[e.keyCode] = false;
-});
-
-
-window.addEventListener("load", function () {
-    update();
-});
-
-
+  };
